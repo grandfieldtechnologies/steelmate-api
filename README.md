@@ -21,7 +21,8 @@ npm link ../steelmate-engine
 
 | Variable | Purpose |
 |----------|---------|
-| `CLERK_SECRET_KEY` | Clerk backend API |
+| `CLERK_SECRET_KEY` | Clerk backend API (same app as web) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Same publishable key as `steelmate` (required for session verification) |
 | `DATABASE_URL` | Neon Postgres (pooled) |
 | `UPSTASH_REDIS_REST_URL` | Active match state |
 | `UPSTASH_REDIS_REST_TOKEN` | |

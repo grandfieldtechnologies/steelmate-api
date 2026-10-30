@@ -1,17 +1,9 @@
 import { eq } from "drizzle-orm";
-import {
-  legalActions,
-  projectGameStateForPlayer,
-} from "@steelmate/engine";
 import { getDb } from "@/db/client";
 import { matches } from "@/db/schema";
 import { AuthError, requireAuthUserId } from "@/lib/auth";
 import { jsonWithCors, preflight } from "@/lib/cors";
-import {
-  loadMatchPayload,
-  playerIdForUser,
-  saveMatchPayload,
-} from "@/lib/redis/match";
+import { buildActiveMatchResponse } from "@/lib/match/syncResponse";
 
 export const runtime = "nodejs";
 
@@ -44,55 +36,20 @@ export async function GET(req: Request, { params }: Params) {
       return jsonWithCors({ error: "Forbidden" }, { status: 403, origin });
     }
 
-    if (matchRow.status === "waiting") {
-      return jsonWithCors(
-        {
-          status: matchRow.status,
-          inviteCode: matchRow.inviteCode,
-          version: 0,
-        },
-        { origin },
-      );
-    }
-
-    const payload = await loadMatchPayload(id);
-    if (!payload) {
-      return jsonWithCors(
-        { error: "Active state unavailable" },
-        { status: 503, origin },
-      );
-    }
-
-    const playerId = playerIdForUser(payload, userId);
-    if (playerId === null) {
-      return jsonWithCors({ error: "Forbidden" }, { status: 403, origin });
-    }
-
-    if (sinceVersion !== null && Number(sinceVersion) === payload.version) {
-      return jsonWithCors({ unchanged: true, version: payload.version }, { origin });
-    }
-
-    const projected = projectGameStateForPlayer(payload.state, playerId);
-    const actor =
-      payload.state.respondingPlayerId ?? payload.state.activePlayer;
-    const legal =
-      actor === playerId ? legalActions(payload.state) : [];
-
-    const eventsFrom = payload.eventCursor;
-    const eventsDelta = payload.state.events.slice(eventsFrom);
-
-    return jsonWithCors(
-      {
-        status: matchRow.status,
-        version: payload.version,
-        winner: payload.state.winner,
-        you: projected,
-        legalActions: legal,
-        eventsDelta,
-        playerId,
-      },
-      { origin },
+    const sync = await buildActiveMatchResponse(
+      db,
+      id,
+      matchRow,
+      userId,
+      sinceVersion,
     );
+    if (sync.kind === "error") {
+      return jsonWithCors(sync.body, { status: sync.status, origin });
+    }
+    if (sync.kind === "unchanged") {
+      return jsonWithCors(sync.body, { origin });
+    }
+    return jsonWithCors(sync.body, { origin });
   } catch (e) {
     if (e instanceof AuthError) {
       return jsonWithCors({ error: e.message }, { status: e.status, origin });

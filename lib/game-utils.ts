@@ -13,6 +13,9 @@ export function randomInviteCode(): string {
   return code;
 }
 
+/** PG `integer` is signed 32-bit; engine only needs a stable numeric seed. */
+const PG_INT_MAX = 0x7fffffff;
+
 export function randomSeed(): number {
-  return Math.floor(Math.random() * 0xffffffff) >>> 0;
+  return Math.floor(Math.random() * (PG_INT_MAX + 1));
 }

@@ -36,6 +36,7 @@ Apply schema once:
 ```bash
 # using psql or Neon SQL editor
 psql "$DATABASE_URL" -f drizzle/0000_init.sql
+psql "$DATABASE_URL" -f drizzle/0001_match_lobby.sql
 ```
 
 Or `npm run db:migrate` with `DATABASE_URL` set.
@@ -59,7 +60,11 @@ Or `npm run db:migrate` with `DATABASE_URL` set.
 - `GET|POST /api/v1/decks`
 - `GET|PATCH|DELETE /api/v1/decks/[id]`
 - `POST /api/v1/matches` — create lobby `{ deckId }`
-- `POST /api/v1/matches/join` — `{ inviteCode, deckId }`
+- `POST /api/v1/matches/queue` — find match `{ deckId }`
+- `POST /api/v1/matches/join` — `{ inviteCode, deckId }` (enters ready lobby)
+- `GET /api/v1/matches/active`
+- `POST /api/v1/matches/[id]/start` — mark ready; starts when both players ready
+- `POST /api/v1/matches/[id]/cancel` — cancel solo waiting lobby (host only)
 - `GET /api/v1/matches/[id]?sinceVersion=N`
 - `POST /api/v1/matches/[id]/actions` — `{ action }`
 

@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { MATCH_REDIS_TTL_SEC } from "@/lib/match/constants";
 import type { GameState, PlayerId } from "@steelmate/engine";
 
 export type MatchRedisPayload = {
@@ -6,6 +7,8 @@ export type MatchRedisPayload = {
   version: number;
   playerRoles: { 0: string; 1?: string };
   eventCursor: number;
+  phaseDeadlineAt?: number;
+  lastActionUserId?: string;
 };
 
 let redis: Redis | null = null;
@@ -33,7 +36,7 @@ export async function loadMatchPayload(
 export async function saveMatchPayload(
   matchId: string,
   payload: MatchRedisPayload,
-  ttlSeconds = 60 * 60 * 24 * 7,
+  ttlSeconds = MATCH_REDIS_TTL_SEC,
 ): Promise<void> {
   await getRedis().set(matchKey(matchId), payload, { ex: ttlSeconds });
 }

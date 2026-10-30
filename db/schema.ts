@@ -1,4 +1,5 @@
 import {
+  boolean,
   jsonb,
   pgTable,
   text,
@@ -36,12 +37,13 @@ export const decks = pgTable("decks", {
     .notNull(),
 });
 
-export type MatchStatus = "waiting" | "active" | "finished";
+export type MatchStatus = "waiting" | "ready" | "active" | "finished";
 
 export const matches = pgTable("matches", {
   id: uuid("id").defaultRandom().primaryKey(),
   inviteCode: text("invite_code").notNull().unique(),
   status: text("status").$type<MatchStatus>().notNull(),
+  matchmaking: boolean("matchmaking").notNull().default(false),
   catalogVersion: text("catalog_version").notNull(),
   seed: integer("seed").notNull(),
   player0UserId: text("player0_user_id")
@@ -52,6 +54,8 @@ export const matches = pgTable("matches", {
     .notNull()
     .references(() => decks.id),
   deck1Id: uuid("deck1_id").references(() => decks.id),
+  player0Ready: boolean("player0_ready").notNull().default(false),
+  player1Ready: boolean("player1_ready").notNull().default(false),
   winner: integer("winner").$type<0 | 1 | null>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()

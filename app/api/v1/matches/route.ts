@@ -7,6 +7,9 @@ import { getServerCatalog, requireCatalogVersion } from "@/lib/catalog";
 import { jsonWithCors, preflight } from "@/lib/cors";
 import { randomInviteCode, randomSeed } from "@/lib/game-utils";
 import { saveMatchPayload } from "@/lib/redis/match";
+import { setUserActiveMatch } from "@/lib/redis/activeMatch";
+import { findActiveMatchForUser } from "@/lib/match/tickMatch";
+import { reconcileUserActiveMatch } from "@/lib/match/finish";
 
 export const runtime = "nodejs";
 
@@ -24,6 +27,21 @@ export async function POST(req: Request) {
     }
     const catalogVersion = requireCatalogVersion();
     const db = getDb();
+    await reconcileUserActiveMatch(db, userId);
+    const active = await findActiveMatchForUser(db, userId);
+    if (active) {
+      return jsonWithCors(
+        {
+          error: "Already in an active match",
+          activeMatch: {
+            id: active.id,
+            status: active.status,
+            inviteCode: active.inviteCode,
+          },
+        },
+        { status: 409, origin },
+      );
+    }
     const [deck] = await db
       .select()
       .from(decks)
@@ -51,6 +69,7 @@ export async function POST(req: Request) {
         deck0Id: deck.id,
       })
       .returning();
+    await setUserActiveMatch(userId, match!.id);
     return jsonWithCors(
       {
         match: {

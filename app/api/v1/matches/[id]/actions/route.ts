@@ -15,6 +15,8 @@ import {
   playerIdForUser,
   saveMatchPayload,
 } from "@/lib/redis/match";
+import { finishMatchAndReleasePlayers } from "@/lib/match/finish";
+import { setPhaseDeadline, tickMatch } from "@/lib/match/tickMatch";
 
 export const runtime = "nodejs";
 
@@ -50,13 +52,11 @@ export async function POST(req: Request, { params }: Params) {
       return jsonWithCors({ error: "Forbidden" }, { status: 403, origin });
     }
 
-    const payload = await loadMatchPayload(id);
-    if (!payload) {
-      return jsonWithCors(
-        { error: "Active state unavailable" },
-        { status: 503, origin },
-      );
+    const tick = await tickMatch(db, id, matchRow);
+    if (tick.kind !== "ok") {
+      return jsonWithCors({ error: "Match unavailable" }, { status: 503, origin });
     }
+    let payload = tick.payload;
 
     const playerId = playerIdForUser(payload, userId);
     if (playerId === null) {
@@ -84,7 +84,9 @@ export async function POST(req: Request, { params }: Params) {
       state: nextState,
       version: nextVersion,
       eventCursor: nextState.events.length,
+      lastActionUserId: userId,
     };
+    setPhaseDeadline(nextPayload);
     await saveMatchPayload(id, nextPayload);
 
     const [seqRow] = await db
@@ -102,14 +104,9 @@ export async function POST(req: Request, { params }: Params) {
     });
 
     if (nextState.winner !== null) {
-      await db
-        .update(matches)
-        .set({
-          status: "finished",
-          winner: nextState.winner,
-          finishedAt: new Date(),
-        })
-        .where(eq(matches.id, id));
+      await finishMatchAndReleasePlayers(db, id, matchRow, {
+        winner: nextState.winner,
+      });
     }
 
     const projected = projectGameStateForPlayer(nextState, playerId);
@@ -125,6 +122,8 @@ export async function POST(req: Request, { params }: Params) {
         legalActions: nextLegal,
         eventsDelta: nextState.events.slice(payload.eventCursor),
         winner: nextState.winner,
+        phaseDeadlineAt: nextPayload.phaseDeadlineAt,
+        serverNow: Date.now(),
       },
       { origin },
     );
